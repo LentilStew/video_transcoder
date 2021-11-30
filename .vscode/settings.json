@@ -1,0 +1,31 @@
+{
+    "files.associations": {
+        "typeinfo": "c",
+        "random": "c",
+        "transcode_utils.h": "c",
+        "avcodec.h": "c",
+        "avfilter.h": "c",
+        "filter.h": "c",
+        "avformat.h": "c",
+        "scaler.h": "c",
+        "swscale.h": "c",
+        "*.tcc": "c",
+        "buffersink.h": "c",
+        "buffersrc.h": "c",
+        "opt.h": "c",
+        "pixdesc.h": "c",
+        "stdio.h": "c",
+        "avutil.h": "c",
+        "cmath": "c",
+        "edges.h": "c",
+        "string.h": "c",
+        "ffmpeg_filters.h": "c",
+        "inttypes.h": "c",
+        "logger.h": "c",
+        "timestamp.h": "c",
+        "create_video_encoder.h": "c",
+        "create_audio_encoder.h": "c",
+        "audio_encoder.h": "c",
+        "video_encoder.h": "c"
+    }
+}
