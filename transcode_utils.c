@@ -210,12 +210,12 @@ int open_file(file *video, const char input_path[])
 
     if (!video->container)
     {
-        logging(ERROR,"OPEN_FILE: Failed to alloc memory to the container of the input file(%s)",input_path);
+        logging(ERROR,"OPEN_FILE: Failed to alloc memory");
         return 1;
     }
     if (avformat_open_input(&video->container, input_path, NULL, NULL) != 0)
     {
-        logging(ERROR,"OPEN_FILE: Failed to open input file");
+        logging(ERROR,"OPEN_FILE: Failed to open input file (%s)",input_path);
         return 1;
     }
     if (avformat_find_stream_info(video->container, NULL) < 0)

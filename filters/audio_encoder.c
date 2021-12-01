@@ -8,7 +8,7 @@
 void init_audio_encoder(filters_path *filter_step)
 {
     audio_encoder_params *params = filter_step->filter_params;
-    AVCodecContext *cod_ctx = params->cod_ctx;
+
     AVFormatContext *container = params->container;
     const char *encoder = params->encoder;
     int channels = params->channels;
@@ -38,7 +38,8 @@ void init_audio_encoder(filters_path *filter_step)
         return;
     }
 
-    cod_ctx = avcodec_alloc_context3(enc);
+    params->cod_ctx[0] = avcodec_alloc_context3(enc);
+    AVCodecContext *cod_ctx = params->cod_ctx[0];
 
     if (!cod_ctx)
     {
@@ -52,7 +53,6 @@ void init_audio_encoder(filters_path *filter_step)
     cod_ctx->sample_fmt = *enc->sample_fmts;
     cod_ctx->bit_rate = bit_rate;
     cod_ctx->time_base = (AVRational){1, sample_rate};
-
 
     res = avcodec_open2(cod_ctx, enc, NULL);
     if (res < 0)
@@ -75,7 +75,7 @@ void uninit_audio_encoder(filters_path *filter_props)
 {
     audio_encoder_params *params = filter_props->filter_params;
 
-    avcodec_free_context(&params->cod_ctx);
+    avcodec_free_context(params->cod_ctx);
     av_packet_free(&params->packet);
     free(params);
 
@@ -86,11 +86,11 @@ AVFrame *encode_audio_frame(filters_path *filter_props, AVFrame *frame)
 {
     audio_encoder_params *params = filter_props->filter_params;
 
-    int response = avcodec_send_frame(params->cod_ctx, frame);
+    int response = avcodec_send_frame(*params->cod_ctx, frame);
 
     while (response >= 0)
     {
-        response = avcodec_receive_packet(params->cod_ctx, params->packet);
+        response = avcodec_receive_packet(*params->cod_ctx, params->packet);
 
         if (response == AVERROR(EAGAIN) || response == AVERROR_EOF)
         {
@@ -102,10 +102,13 @@ AVFrame *encode_audio_frame(filters_path *filter_props, AVFrame *frame)
             return NULL;
         }
 
+        params->frames++;
+        params->packet->stream_index = params->index;
+
         params->packet->dts = params->frames * 512;
         params->packet->pts = params->frames * 512;
-        params->frames++;
 
+        params->frames++;
         response = av_interleaved_write_frame(params->container, params->packet);
 
         if (response != 0)
@@ -119,9 +122,9 @@ AVFrame *encode_audio_frame(filters_path *filter_props, AVFrame *frame)
 
     return frame;
 }
-audio_encoder_params *audio_encoder_builder(AVCodecContext *cod_ctx, AVFormatContext *container,
+audio_encoder_params *audio_encoder_builder(AVCodecContext **cod_ctx, AVFormatContext *container,
                                             const char *encoder, int channels, int sample_rate,
-                                            int bit_rate)
+                                            int bit_rate, int index)
 {
     audio_encoder_params *params = malloc(sizeof(audio_encoder_params));
     if (!params)
@@ -136,12 +139,13 @@ audio_encoder_params *audio_encoder_builder(AVCodecContext *cod_ctx, AVFormatCon
     params->channels = channels;
     params->sample_rate = sample_rate;
     params->packet;
+    params->index = index;
     return params;
 }
 
-filters_path *build_audio_encoder(AVCodecContext *cod_ctx, AVFormatContext *container,
+filters_path *build_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *container,
                                   const char *encoder, int channels, int sample_rate,
-                                  int bit_rate)
+                                  int bit_rate, int index)
 
 {
     filters_path *new = malloc(sizeof(filters_path));
@@ -153,7 +157,7 @@ filters_path *build_audio_encoder(AVCodecContext *cod_ctx, AVFormatContext *cont
     }
 
     new->filter_params = audio_encoder_builder(cod_ctx, container, encoder, channels,
-                                               sample_rate, bit_rate);
+                                               sample_rate, bit_rate, index);
     if (!new->filter_params)
     {
         logging(ERROR, "BUILD ENCODER:failed allocating ram for filter params");

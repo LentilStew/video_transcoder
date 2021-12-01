@@ -15,13 +15,15 @@ file *start_output_from_file(const char *path, file *input, const char *video_en
 file *create_file(int streams, const char *filename);
 filters_path *create_video_path(AVCodecContext *encoder, AVCodecContext *decoder, filters_path *path);
 int times_per_second();
+
 int main()
 {
     int res;
     const char *output_path = "test.mp4";
 
-    file *input = prepare_file("./in2.mp4");
+    file *input = prepare_file("https://clips-media-assets2.twitch.tv/AT-cm%7Ctj0aODkTsTPV1TzXCB72-A.mp4");
     file *output = create_file(2, output_path);
+    
     filters_path *video_root = NULL;
     filters_path *audio_root = NULL;
 
@@ -39,25 +41,28 @@ int main()
         return 1;
     }
 
-    input->paths[in_video_codec] = build_video_encoder(output->codec[in_video_codec], output->container, "h264_nvenc", 1280,
-                                                       720, 23, (AVRational){1, 1}, (AVRational){1, 24}, 45000000, 0);
+    input->paths[in_video_codec] = build_video_encoder(&output->codec[in_video_codec], output->container, "h264_nvenc", 1920,
+                                                       1080, 23, (AVRational){1, 1}, (AVRational){60, 1}, 45000000, 0, in_video_codec);
     if (!input->paths[in_video_codec])
     {
         logging(ERROR, "MAIN: failed building video encoder");
         return 1;
     }
-    if(output->codec[in_video_codec] == NULL)
-    {
-        printf("ASDASDASDA\n");
-        return;
-    }
+
+    input->paths[in_video_codec]->init(input->paths[in_video_codec]);
+
+    logging(INFO, "VIDEO CODEC: %i", output->codec[in_video_codec]->codec_id);
+
     input->paths[in_audio_codec] = build_audio_encoder(&output->codec[in_audio_codec], output->container, "aac", 2,
-                                                       48000, 123 * 1000);
+                                                       48000, 123 * 1000, in_audio_codec);
     if (!input->paths[in_audio_codec])
     {
         logging(ERROR, "MAIN: failed building audio encoder");
         return 1;
     }
+    input->paths[in_audio_codec]->init(input->paths[in_audio_codec]);
+
+    logging(INFO, "AUDIO CODEC: %i", output->codec[in_audio_codec]->codec_id);
 
     if (output->container->oformat->flags & AVFMT_GLOBALHEADER)
         output->container->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -66,7 +71,7 @@ int main()
     {
         if (avio_open(&output->container->pb, output_path, AVIO_FLAG_WRITE) < 0)
         {
-            printf("could not open the output file");
+            logging(ERROR, "could not open the output file");
             return 1;
         }
     }
@@ -74,13 +79,14 @@ int main()
     AVDictionary *muxer_opts = NULL;
     if (avformat_write_header(output->container, &muxer_opts) < 0)
     {
-        printf("an error occurred when opening output file");
+        logging(ERROR, "error opening output file");
         return 1;
     }
 
     stream_clip(input, output);
 
     av_write_trailer(output->container);
+
     free_file(input);
     free_file(output);
 }
@@ -90,7 +96,7 @@ int main()
 {
     int res;
 
-    file *input2 = prepare_file("./in2.mp4");
+    file *input2 = prepare_file("https://clips-media-assets2.twitch.tv/AT-cm%7Ctj0aODkTsTPV1TzXCB72-A.mp4");
 
     if (!input2)
     {
@@ -115,8 +121,8 @@ int main()
         printf("Failed creating video encoder\n");
         return 1;
     }
-    
-    res = create_audio_encoder(&output->codec[1], output->container, "aac", 2, 44100, input2->codec[1]->bit_rate);
+
+    res = create_audio_encoder(&output->codec[1], output->container, "aac", 2, 48000, input2->codec[1]->bit_rate);
     if (res != 0)
     {
         printf("Failed creating audio encoder\n");
@@ -149,9 +155,9 @@ int main()
     AVCodecContext *output_ctx = output->codec[out_video_codec];
 
     int pixs[] = {output_ctx->sample_fmt, AV_PIX_FMT_NONE};
-    
-    filters_path *root = NULL;
 
+    filters_path *root = NULL;
+    /*
     root = build_resize_filter(input_ctx->height, input_ctx->width, input_ctx->pix_fmt,
                                output_ctx->height, output_ctx->width, output_ctx->pix_fmt);
     if (!root)
@@ -159,16 +165,15 @@ int main()
         printf("Failed creating path\n");
         return 1;
     }
-    
 
-    filters_path *root = NULL;
-    root = build_ffmpeg_filter("framerate=45", input2->container->streams[in_video_codec2]->time_base, input_ctx->pix_fmt, pixs,
+    root = build_ffmpeg_filter("edgedetect", input2->container->streams[in_video_codec2]->time_base, input_ctx->pix_fmt, pixs,
                                input2->container->streams[in_video_codec2]->codecpar->width, input2->container->streams[in_video_codec2]->codecpar->height, input_ctx->sample_aspect_ratio);
     if (!root)
     {
         printf("Failed creating path\n");
         return 1;
     }
+    
 
     input2->paths[in_video_codec2] = root;
 
@@ -186,7 +191,7 @@ int main()
 
     return 0;
 }
-*/
+
 int fp2s = 0;
 int times_per_second()
 {
@@ -197,7 +202,7 @@ int times_per_second()
         sleep(1);
     }
 }
-
+*/
 filters_path *create_video_path(AVCodecContext *encoder, AVCodecContext *decoder, filters_path *path)
 {
     filters_path *root = NULL;
@@ -321,12 +326,11 @@ int stream_clip(file *input, file *output)
         {
             if (!packet->stream_index == 0)
             {
-                fp2s++;
+                //fp2s++;
             }
 
-            frame = apply_path(input->paths[packet->stream_index], frame);
-
-            encode_frame(output, frame, packet->stream_index);
+            //encode_frame(output, frame, packet->stream_index);
+            apply_path(input->paths[packet->stream_index], frame);
         }
         else if (res == -1)
         {

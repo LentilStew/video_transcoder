@@ -5,7 +5,7 @@
 
 typedef struct video_encoder_params
 {
-    AVCodecContext *cod_ctx;
+    AVCodecContext **cod_ctx;
     AVFormatContext *container;
     const char *encoder;
     int width;
@@ -14,18 +14,20 @@ typedef struct video_encoder_params
     int frames;
     AVRational sample_aspect_ratio;
     AVRational frame_rate;
+    int index;
+    
     int bit_rate;
     int buffer_size;
     AVPacket *packet;
 } video_encoder_params;
 
-filters_path *build_video_encoder(AVCodecContext *cod_ctx, AVFormatContext *container, const char *encoder,
+filters_path *build_video_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, const char *encoder,
                             int width, int height, int pix_fmt, AVRational sample_aspect_ratio,
-                            AVRational frame_rate, int bit_rate, int buffer_size);
+                            AVRational frame_rate, int bit_rate, int buffer_size,int index);
 
-video_encoder_params *video_encoder_builder(AVCodecContext *cod_ctx, AVFormatContext *container, const char *encoder,
+video_encoder_params *video_encoder_builder(AVCodecContext **cod_ctx, AVFormatContext *container, const char *encoder,
                                             int width, int height, int pix_fmt, AVRational sample_aspect_ratio,
-                                            AVRational frame_rate, int bit_rate, int buffer_size);
+                                            AVRational frame_rate, int bit_rate, int buffer_size,int index);
 
 AVFrame *encode_video_frame(filters_path *filter_props, AVFrame *frame);
 
