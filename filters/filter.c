@@ -25,7 +25,7 @@ void uninit_path(filters_path *path)
 
 void apply_path(filters_path *path, AVFrame *frame)
 {
-    if (path->next == NULL)
+    if (path == NULL)
     {
         return;
     }
@@ -47,21 +47,21 @@ void apply_path(filters_path *path, AVFrame *frame)
     }
 }
 
-filters_path * append_filter_path(filters_path *a, filters_path *b)
+filters_path *append_filter_path(filters_path *a, filters_path *b)
 {
     filters_path *root = a;
-    if(a == NULL)
+    if (a == NULL)
     {
         return NULL;
     }
 
-    while(a->next !=  NULL)
+    while (a->next != NULL)
     {
         a = a->next;
     }
-    
+
     a->next = b;
-    
+
     return root;
 }
 
@@ -92,4 +92,20 @@ filters_path *build_filters_path()
     new->next = NULL;
     new->uninit = NULL;
     return new;
+}
+
+void free_filters_path(filters_path *fp)
+{
+    if (fp == NULL)
+    {
+        return;
+    }
+    free_filter_path(fp->next);
+    free(fp);
+}
+//uninits and free path
+void end_path(filters_path *fp)
+{
+    uninit_path(fp);
+    free_filter_path(fp);
 }

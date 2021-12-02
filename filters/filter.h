@@ -30,3 +30,7 @@ void init_path(filters_path *path);
 void uninit_path(filters_path *path);
 
 void free_filter_path(filters_path *f);
+
+void end_path(filters_path *fp);
+
+void free_filters_path(filters_path *fp);
