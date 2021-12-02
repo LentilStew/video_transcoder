@@ -69,7 +69,7 @@ void init_audio_encoder(filters_path *filter_step)
         return;
     }
 
-    return;
+       return;
 }
 void uninit_audio_encoder(filters_path *filter_props)
 {
@@ -101,14 +101,17 @@ AVFrame *encode_audio_frame(filters_path *filter_props, AVFrame *frame)
             logging(ERROR, "AUDIO ENCODER: Error receiving packet");
             return NULL;
         }
-
-        params->frames++;
         params->packet->stream_index = params->index;
+        params->pts_real_time = av_q2d((AVRational){params->container->streams[params->index]->time_base.den, params->sample_rate});
 
-        params->packet->dts = params->frames * 512;
-        params->packet->pts = params->frames * 512;
+        params->packet->dts = params->frames * params->pts_real_time;
+        params->packet->pts = params->frames * params->pts_real_time;
+        params->frames++;
 
         params->frames++;
+
+        printf("Encoding audio frame %i %i\n",frame->width,frame->height);
+
         response = av_interleaved_write_frame(params->container, params->packet);
 
         if (response != 0)
@@ -148,7 +151,7 @@ filters_path *build_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *con
                                   int bit_rate, int index)
 
 {
-    filters_path *new = malloc(sizeof(filters_path));
+    filters_path *new = build_filters_path();
     if (!new)
     {
         logging(ERROR, "BUILD ENCODER:failed allocating ram for filter path");
@@ -167,6 +170,7 @@ filters_path *build_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *con
     new->init = init_audio_encoder;
     new->filter_frame = encode_audio_frame;
     new->uninit = uninit_audio_encoder;
+    new->encoder_filter_path = NULL;
     new->internal = NULL;
     new->next = NULL;
     new->multiple_output = 0;

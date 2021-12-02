@@ -15,7 +15,7 @@ typedef struct video_encoder_params
     AVRational sample_aspect_ratio;
     AVRational frame_rate;
     int index;
-    
+    double pts_real_time;
     int bit_rate;
     int buffer_size;
     AVPacket *packet;

@@ -15,11 +15,15 @@ typedef struct filters_path
 
     int multiple_output; // 0 no ; 1 yes
 
+    struct filters_path *encoder_filter_path;
+
     struct filters_path *next;
 
 } filters_path;
 
-AVFrame *apply_path(filters_path *path, AVFrame *frame);
+void apply_path(filters_path *path, AVFrame *frame);
+
+filters_path *build_filters_path();
 
 void init_path(filters_path *path);
 

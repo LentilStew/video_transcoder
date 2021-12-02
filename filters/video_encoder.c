@@ -82,6 +82,8 @@ void init_video_encoder(filters_path *filter_step)
         logging(ERROR, "CREATE VIDEO ENCODER: failed setting codec parameters from context");
         return;
     }
+
+    
     return;
 }
 
@@ -115,12 +117,18 @@ AVFrame *encode_video_frame(filters_path *filter_props, AVFrame *frame)
             logging(ERROR, "ENCODER: Error receiving packet");
             return NULL;
         }
+
         params->packet->stream_index = params->index;
 
-        params->packet->dts = params->frames * 1024;
-        params->packet->pts = params->frames * 1024;
+        params->container->streams[params->index]->time_base;
+        AVRational tmp = av_div_q((AVRational){params->container->streams[params->index]->time_base.den, 1}, params->frame_rate);
+        params->pts_real_time = av_q2d(tmp);
+        params->packet->dts = params->frames * params->pts_real_time;
+        params->packet->pts = params->frames * params->pts_real_time;
 
         params->frames++;
+
+        printf("Encoding video frame %i %i\n",frame->width,frame->height);
         response = av_interleaved_write_frame(params->container, params->packet);
 
         if (response != 0)
@@ -162,7 +170,7 @@ filters_path *build_video_encoder(AVCodecContext **cod_ctx, AVFormatContext *con
                                   int width, int height, int pix_fmt, AVRational sample_aspect_ratio,
                                   AVRational frame_rate, int bit_rate, int buffer_size, int index)
 {
-    filters_path *new = malloc(sizeof(filters_path));
+    filters_path *new = build_filters_path();
     if (!new)
     {
         logging(ERROR, "BUILD ENCODER:failed allocating ram for filter path");

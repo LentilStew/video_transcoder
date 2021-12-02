@@ -14,14 +14,17 @@ typedef struct audio_encoder_params
     AVPacket *packet;
     int frames;
     int index;
+    double pts_real_time;
+
 } audio_encoder_params;
+
 filters_path *build_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *container,
                                   const char *encoder, int channels, int sample_rate,
-                                  int bit_rate,int index);
+                                  int bit_rate, int index);
 
 audio_encoder_params *audio_encoder_builder(AVCodecContext **cod_ctx, AVFormatContext *container,
                                             const char *encoder, int channels, int sample_rate,
-                                            int bit_rate,int index);
+                                            int bit_rate, int index);
 
 AVFrame *encode_audio_frame(filters_path *filter_props, AVFrame *frame);
 

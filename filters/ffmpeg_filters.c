@@ -179,7 +179,7 @@ filters_path *build_ffmpeg_filter(const char *filters_descr, AVRational time_bas
                                   int *out_pix_fmts, int in_width, int in_height, AVRational sample_aspect_ratio)
 {
 
-    filters_path *new = malloc(sizeof(filters_path));
+    filters_path *new = build_filters_path();
 
     if (!new)
     {

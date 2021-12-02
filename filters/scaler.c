@@ -77,7 +77,7 @@ filters_path *build_resize_filter(int in_height, int in_width, int in_pixel_fmt,
     logging(INFO, "CREATE FILTER RESIZE: in width %i height %i pix_fmt %i", in_width, in_height, in_pixel_fmt);
     logging(INFO, "CREATE FILTER RESIZE: out width %i height %i pix_fmt %i", out_width, out_height, out_pixel_fmt);
 
-    filters_path *new = malloc(sizeof(filters_path));
+    filters_path *new = build_filters_path();
     if (!new)
     {
         logging(ERROR, "CREATE FILTER RESIZE: ERROR ALLOCATING RAM");

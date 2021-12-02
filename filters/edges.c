@@ -79,7 +79,7 @@ edges_params *edges_builder(int height, int width)
 
 filters_path *build_edges_filter(int width, int height)
 {
-    filters_path *new = malloc(sizeof(filters_path));
+    filters_path *new = build_filters_path();
     if (!new)
     {
         return NULL;

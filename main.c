@@ -23,7 +23,7 @@ int main()
 
     file *input = prepare_file("https://clips-media-assets2.twitch.tv/AT-cm%7Ctj0aODkTsTPV1TzXCB72-A.mp4");
     file *output = create_file(2, output_path);
-    
+
     filters_path *video_root = NULL;
     filters_path *audio_root = NULL;
 
@@ -32,7 +32,7 @@ int main()
 
     if (!input)
     {
-        printf("Failed in opening input\n");
+        printf("Failed opening input\n");
         return 1;
     }
     if (!output)
@@ -84,7 +84,6 @@ int main()
     }
 
     stream_clip(input, output);
-
     av_write_trailer(output->container);
 
     free_file(input);
