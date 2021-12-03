@@ -29,6 +29,8 @@ int create_video_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
 int create_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, const char *encoder,
                          int channels, int sample_rate, int bit_rate);
 
+int find_stream(int stream, file *f);
+
 int open_file(file *video, const char input_path[]);
 
 int decode_frame(file *decoder, AVFrame *frame, AVPacket *packet);
@@ -36,5 +38,3 @@ int decode_frame(file *decoder, AVFrame *frame, AVPacket *packet);
 int open_codecs(file *video, const char *video_codec, const char *audio_codec);
 
 int free_file(file *f);
-
-int create_decoder(file **new_video, const char input_path[], const char *video_codec, const char *audio_codec);

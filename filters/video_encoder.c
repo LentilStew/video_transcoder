@@ -26,12 +26,13 @@ void init_video_encoder(filters_path *filter_step)
         return;
     }
 
-    AVStream *stream = avformat_new_stream(container, NULL);
-    if (!stream)
+    params->stream = avformat_new_stream(container, NULL);
+    if (!params->stream)
     {
         logging(ERROR, "CREATE VIDEO ENCODER: Failed allocating memory for stream");
         return;
     }
+
     const AVCodec *enc = avcodec_find_encoder_by_name(encoder);
     if (!enc)
     {
@@ -60,7 +61,7 @@ void init_video_encoder(filters_path *filter_step)
     cod_ctx->rc_max_rate = buffer_size;
     cod_ctx->rc_min_rate = buffer_size;
 
-    stream->time_base = cod_ctx->time_base; //cod_ctx[0]->time_base;
+    params->stream->time_base = cod_ctx->time_base; //cod_ctx[0]->time_base;
 
     res = av_opt_set(cod_ctx->priv_data, "preset", "fast", 0);
     if (res != 0)
@@ -76,14 +77,13 @@ void init_video_encoder(filters_path *filter_step)
         return;
     }
 
-    res = avcodec_parameters_from_context(stream->codecpar, cod_ctx);
+    res = avcodec_parameters_from_context(params->stream->codecpar, cod_ctx);
     if (res < 0)
     {
         logging(ERROR, "CREATE VIDEO ENCODER: failed setting codec parameters from context");
         return;
     }
 
-    
     return;
 }
 
@@ -101,6 +101,9 @@ void uninit_video_encoder(filters_path *filter_props)
 AVFrame *encode_video_frame(filters_path *filter_props, AVFrame *frame)
 {
     video_encoder_params *params = filter_props->filter_params;
+
+    if (frame)
+        frame->pict_type = AV_PICTURE_TYPE_NONE;
 
     int response = avcodec_send_frame(*params->cod_ctx, frame);
 
@@ -120,15 +123,10 @@ AVFrame *encode_video_frame(filters_path *filter_props, AVFrame *frame)
 
         params->packet->stream_index = params->index;
 
-        params->container->streams[params->index]->time_base;
-        AVRational tmp = av_div_q((AVRational){params->container->streams[params->index]->time_base.den, 1}, params->frame_rate);
-        params->pts_real_time = av_q2d(tmp);
-        params->packet->dts = params->frames * params->pts_real_time;
-        params->packet->pts = params->frames * params->pts_real_time;
-
+        params->packet->duration = params->stream->time_base.den / params->stream->time_base.num / params->frame_rate.num * params->frame_rate.den;
         params->frames++;
 
-        printf("Encoding video frame %i %i\n",frame->width,frame->height);
+        av_packet_rescale_ts(params->packet, params->in_time_base, params->stream->time_base);
         response = av_interleaved_write_frame(params->container, params->packet);
 
         if (response != 0)
@@ -144,7 +142,8 @@ AVFrame *encode_video_frame(filters_path *filter_props, AVFrame *frame)
 }
 video_encoder_params *video_encoder_builder(AVCodecContext **cod_ctx, AVFormatContext *container, const char *encoder,
                                             int width, int height, int pix_fmt, AVRational sample_aspect_ratio,
-                                            AVRational frame_rate, int bit_rate, int buffer_size, int index)
+                                            AVRational frame_rate, int bit_rate, int buffer_size, int index,
+                                            AVRational in_time_base)
 {
     video_encoder_params *params = malloc(sizeof(video_encoder_params));
     if (!params)
@@ -163,12 +162,15 @@ video_encoder_params *video_encoder_builder(AVCodecContext **cod_ctx, AVFormatCo
     params->sample_aspect_ratio = sample_aspect_ratio;
     params->frames = 0;
     params->index = index;
+    params->in_time_base = in_time_base;
+
     return params;
 }
 
 filters_path *build_video_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, const char *encoder,
                                   int width, int height, int pix_fmt, AVRational sample_aspect_ratio,
-                                  AVRational frame_rate, int bit_rate, int buffer_size, int index)
+                                  AVRational frame_rate, int bit_rate, int buffer_size, int index,
+                                  AVRational in_time_base)
 {
     filters_path *new = build_filters_path();
     if (!new)
@@ -180,7 +182,7 @@ filters_path *build_video_encoder(AVCodecContext **cod_ctx, AVFormatContext *con
 
     new->filter_params = video_encoder_builder(cod_ctx, container, encoder, width,
                                                height, pix_fmt, sample_aspect_ratio,
-                                               frame_rate, bit_rate, buffer_size, index);
+                                               frame_rate, bit_rate, buffer_size, index, in_time_base);
     if (!new->filter_params)
     {
         logging(ERROR, "BUILD ENCODER:failed allocating ram for filter params");

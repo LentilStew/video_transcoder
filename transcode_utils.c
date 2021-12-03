@@ -17,7 +17,7 @@ int encode_frame(file *encoder, AVFrame *input_frame, int index)
     AVPacket *output_packet = av_packet_alloc();
     if (!output_packet)
     {
-        logging(ERROR,"ENCODER: Failed mallocing output_package");
+        logging(ERROR, "ENCODER: Failed mallocing output_package");
         return 1;
     }
 
@@ -35,7 +35,7 @@ int encode_frame(file *encoder, AVFrame *input_frame, int index)
         }
         else if (response < 0)
         {
-            logging(ERROR,"ENCODER: Error receiving packet");
+            logging(ERROR, "ENCODER: Error receiving packet");
 
             return 1;
         }
@@ -59,7 +59,7 @@ int encode_frame(file *encoder, AVFrame *input_frame, int index)
 
         if (response != 0)
         {
-            logging(ERROR,"ENCODER:failed writing frame");
+            logging(ERROR, "ENCODER:failed writing frame");
 
             return 1;
         }
@@ -76,13 +76,13 @@ int create_video_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
     AVStream *stream = avformat_new_stream(container, NULL);
     if (!stream)
     {
-        logging(ERROR,"CREATE VIDEO ENCODER: Failed allocating memory for stream");
+        logging(ERROR, "CREATE VIDEO ENCODER: Failed allocating memory for stream");
         return 1;
     }
     const AVCodec *enc = avcodec_find_encoder_by_name(encoder);
     if (!enc)
     {
-        logging(ERROR,"CREATE VIDEO ENCODER: Failed searching encoder");
+        logging(ERROR, "CREATE VIDEO ENCODER: Failed searching encoder");
 
         return 1;
     }
@@ -91,7 +91,7 @@ int create_video_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
 
     if (!cod_ctx[0])
     {
-        logging(ERROR,"CREATE VIDEO ENCODER: Failed allocation codec context");
+        logging(ERROR, "CREATE VIDEO ENCODER: Failed allocation codec context");
         return 1;
     }
 
@@ -115,14 +115,14 @@ int create_video_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
 
     if (res != 0)
     {
-        logging(ERROR,"CREATE VIDEO ENCODER: Failed opt set");
+        logging(ERROR, "CREATE VIDEO ENCODER: Failed opt set");
         return 1;
     }
 
     res = avcodec_open2(cod_ctx[0], enc, NULL);
     if (res < 0)
     {
-        logging(ERROR,"CREATE VIDEO ENCODER: couldn't open codec");
+        logging(ERROR, "CREATE VIDEO ENCODER: couldn't open codec");
         return 1;
     }
 
@@ -130,7 +130,7 @@ int create_video_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
 
     if (res < 0)
     {
-        logging(ERROR,"CREATE VIDEO ENCODER: failed setting codec parameters from context");
+        logging(ERROR, "CREATE VIDEO ENCODER: failed setting codec parameters from context");
         return 1;
     }
 
@@ -143,13 +143,13 @@ int create_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
     AVStream *stream = avformat_new_stream(container, NULL);
     if (!stream)
     {
-        logging(ERROR,"CREATE AUDIO ENCODER: Failed allocating memory for stream");
+        logging(ERROR, "CREATE AUDIO ENCODER: Failed allocating memory for stream");
         return 1;
     }
     const AVCodec *enc = avcodec_find_encoder_by_name(encoder);
     if (!enc)
     {
-        logging(ERROR,"CREATE AUDIO ENCODER: Failed searching encoder");
+        logging(ERROR, "CREATE AUDIO ENCODER: Failed searching encoder");
 
         return 1;
     }
@@ -158,7 +158,7 @@ int create_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
 
     if (!cod_ctx[0])
     {
-        logging(ERROR,"CREATE AUDIO ENCODER: Failed allocation codec context");
+        logging(ERROR, "CREATE AUDIO ENCODER: Failed allocation codec context");
         return 1;
     }
 
@@ -174,7 +174,7 @@ int create_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
     res = avcodec_open2(cod_ctx[0], enc, NULL);
     if (res < 0)
     {
-        logging(ERROR,"CREATE AUDIO ENCODER: couldn't open codec");
+        logging(ERROR, "CREATE AUDIO ENCODER: couldn't open codec");
         return 1;
     }
 
@@ -182,7 +182,7 @@ int create_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
 
     if (res < 0)
     {
-        logging(ERROR,"CREATE AUDIO ENCODER: failed setting codec parameters from context");
+        logging(ERROR, "CREATE AUDIO ENCODER: failed setting codec parameters from context");
         return 1;
     }
 
@@ -192,16 +192,23 @@ int create_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *container, c
 int free_file(file *f)
 {
     int i;
-    for (i = 0; i < f->container->nb_streams; i++)
+    if (f->codec != NULL)
     {
-        avcodec_free_context(&f->codec[i]);
+        for (i = 0; i < f->container->nb_streams; i++)
+        {
+            if (f->codec[i] != NULL)
+            {
+                avcodec_free_context(&f->codec[i]);
+            }
+        }
+
+        av_free(f->codec);
     }
 
-    av_free(f->codec);
-
+    free(f->frames);
     avformat_close_input(&f->container);
 
-    av_free(f);
+    free(f);
 }
 
 int open_file(file *video, const char input_path[])
@@ -210,17 +217,17 @@ int open_file(file *video, const char input_path[])
 
     if (!video->container)
     {
-        logging(ERROR,"OPEN_FILE: Failed to alloc memory");
+        logging(ERROR, "OPEN_FILE: Failed to alloc memory");
         return 1;
     }
     if (avformat_open_input(&video->container, input_path, NULL, NULL) != 0)
     {
-        logging(ERROR,"OPEN_FILE: Failed to open input file (%s)",input_path);
+        logging(ERROR, "OPEN_FILE: Failed to open input file (%s)", input_path);
         return 1;
     }
     if (avformat_find_stream_info(video->container, NULL) < 0)
     {
-        logging(ERROR,"OPEN_FILE: Failed to open read stream info");
+        logging(ERROR, "OPEN_FILE: Failed to open read stream info");
         return 1;
     }
 
@@ -237,6 +244,22 @@ int find_codec(int stream, file *f)
             continue;
         }
         else if (f->codec[i]->codec_type == stream)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int find_stream(int stream, file *f)
+{
+    for (int i = 0; i < f->container->nb_streams; i++)
+    {
+        if (!f->container->streams[i])
+        {
+            continue;
+        }
+        else if (f->container->streams[i]->codecpar->codec_type == stream)
         {
             return i;
         }
@@ -280,26 +303,26 @@ int open_codecs(file *video, const char *video_codec, const char *audio_codec)
 
         if (!dec)
         {
-            logging(ERROR,"DECODER CODECS: failed to find the codec");
+            logging(ERROR, "DECODER CODECS: failed to find the codec");
             return 1;
         }
 
         codec_ctx = avcodec_alloc_context3(dec);
         if (!codec_ctx)
         {
-            logging(ERROR,"DECODER CODECS: failed to alloc memory for codec context");
+            logging(ERROR, "DECODER CODECS: failed to alloc memory for codec context");
             return 1;
         }
 
         if (avcodec_parameters_to_context(codec_ctx, stream->codecpar) < 0)
         {
-            logging(ERROR,"DECODER CODECS: failed to fill codec context");
+            logging(ERROR, "DECODER CODECS: failed to fill codec context");
             return 1;
         }
 
         if (avcodec_open2(codec_ctx, dec, NULL) < 0)
         {
-            logging(ERROR,"DECODER CODECS: failed to open codec");
+            logging(ERROR, "DECODER CODECS: failed to open codec");
             return 1;
         }
 
@@ -337,7 +360,7 @@ int decode_frame(file *decoder, AVFrame *frame, AVPacket *packet)
 
         if (response < 0)
         {
-            logging(ERROR,"FRAME DECODER: Error while sending packet to decoder");
+            logging(ERROR, "FRAME DECODER: Error while sending packet to decoder");
             return 1;
         }
         while (response >= 0)
@@ -350,7 +373,7 @@ int decode_frame(file *decoder, AVFrame *frame, AVPacket *packet)
             }
             else if (response < 0)
             {
-                logging(ERROR,"FRAME DECODER: Error while receiving frame from decoder\n");
+                logging(ERROR, "FRAME DECODER: Error while receiving frame from decoder\n");
                 return 1;
             }
             if (response >= 0)

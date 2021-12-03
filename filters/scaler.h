@@ -16,11 +16,11 @@ typedef struct scaler_params
 typedef struct internal_params
 {
     struct SwsContext *scaler;
-}internal_params;
+} internal_params;
 
-filters_path *build_resize_filter(int in_height, int in_width, int in_pixel_fmt, int out_height, int out_width, int out_pixel_fmt);
+filters_path *build_resize_filter(int in_width, int in_height, int in_pixel_fmt, int out_width, int out_height, int out_pixel_fmt);
 
-scaler_params *scaler_builder(int in_height, int in_width, int in_pixel_fmt, int out_height, int out_width, int out_pixel_fmt);
+scaler_params *scaler_builder(int in_width, int in_height, int in_pixel_fmt, int out_width, int out_height, int out_pixel_fmt);
 
 AVFrame *resize_frame(filters_path *filter_step, AVFrame *oldFrame);
 

@@ -18,14 +18,15 @@ void init_audio_encoder(filters_path *filter_step)
     AVPacket *packet;
 
     params->packet = av_packet_alloc();
+    params->packet->dts = 0;
     if (!params->packet)
     {
         logging(ERROR, "CREATE VIDEO ENCODER: Failed allocating memory for packet");
         return;
     }
 
-    AVStream *stream = avformat_new_stream(container, NULL);
-    if (!stream)
+    params->stream = avformat_new_stream(container, NULL);
+    if (!params->stream)
     {
         logging(ERROR, "CREATE AUDIO ENCODER: Failed allocating memory for stream");
         return;
@@ -61,7 +62,7 @@ void init_audio_encoder(filters_path *filter_step)
         return;
     }
 
-    res = avcodec_parameters_from_context(stream->codecpar, cod_ctx);
+    res = avcodec_parameters_from_context(params->stream->codecpar, cod_ctx);
 
     if (res < 0)
     {
@@ -69,7 +70,7 @@ void init_audio_encoder(filters_path *filter_step)
         return;
     }
 
-       return;
+    return;
 }
 void uninit_audio_encoder(filters_path *filter_props)
 {
@@ -101,18 +102,13 @@ AVFrame *encode_audio_frame(filters_path *filter_props, AVFrame *frame)
             logging(ERROR, "AUDIO ENCODER: Error receiving packet");
             return NULL;
         }
+
         params->packet->stream_index = params->index;
-        params->pts_real_time = av_q2d((AVRational){params->container->streams[params->index]->time_base.den, params->sample_rate});
 
-        params->packet->dts = params->frames * params->pts_real_time;
-        params->packet->pts = params->frames * params->pts_real_time;
-        params->frames++;
-
-        params->frames++;
-
-        printf("Encoding audio frame %i %i\n",frame->width,frame->height);
-
+        av_packet_rescale_ts(params->packet, params->stream->time_base, params->stream->time_base);
         response = av_interleaved_write_frame(params->container, params->packet);
+
+        params->frames++;
 
         if (response != 0)
         {
@@ -127,7 +123,7 @@ AVFrame *encode_audio_frame(filters_path *filter_props, AVFrame *frame)
 }
 audio_encoder_params *audio_encoder_builder(AVCodecContext **cod_ctx, AVFormatContext *container,
                                             const char *encoder, int channels, int sample_rate,
-                                            int bit_rate, int index)
+                                            int bit_rate, int index, AVRational in_time_base)
 {
     audio_encoder_params *params = malloc(sizeof(audio_encoder_params));
     if (!params)
@@ -143,12 +139,14 @@ audio_encoder_params *audio_encoder_builder(AVCodecContext **cod_ctx, AVFormatCo
     params->sample_rate = sample_rate;
     params->packet;
     params->index = index;
+    params->in_time_base = in_time_base;
+
     return params;
 }
 
 filters_path *build_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *container,
                                   const char *encoder, int channels, int sample_rate,
-                                  int bit_rate, int index)
+                                  int bit_rate, int index, AVRational in_time_base)
 
 {
     filters_path *new = build_filters_path();
@@ -160,7 +158,7 @@ filters_path *build_audio_encoder(AVCodecContext **cod_ctx, AVFormatContext *con
     }
 
     new->filter_params = audio_encoder_builder(cod_ctx, container, encoder, channels,
-                                               sample_rate, bit_rate, index);
+                                               sample_rate, bit_rate, index, in_time_base);
     if (!new->filter_params)
     {
         logging(ERROR, "BUILD ENCODER:failed allocating ram for filter params");

@@ -9,7 +9,8 @@
 #include <threads.h>
 #include "logger.h"
 
-file *prepare_file(char *path);
+// If video decoder or audio decoder are NULL default ones are going to be used
+file *create_decoder(char *path, const char *video_decoder, const char *audio_decoder);
 int stream_clip(file *input, file *output);
 file *start_output_from_file(const char *path, file *input, const char *video_encoder, const char *audio_encoder);
 file *create_file(int streams, const char *filename);
@@ -19,9 +20,15 @@ int times_per_second();
 int main()
 {
     int res;
-    const char *output_path = "test.mp4";
+    const char *output_path = "out.mp4";
+    //https://clips-media-assets2.twitch.tv/AT-cm%7Csrf8WrWTR-507Wm4I2Wn2A.mp4
+    file *input = create_decoder("in.mp4", "h264_cuvid", NULL);
+    if (!input)
+    {
+        logging(ERROR, "Failed creating input\n");
+        return 1;
+    }
 
-    file *input = prepare_file("https://clips-media-assets2.twitch.tv/AT-cm%7Ctj0aODkTsTPV1TzXCB72-A.mp4");
     file *output = create_file(2, output_path);
 
     filters_path *video_root = NULL;
@@ -30,6 +37,8 @@ int main()
     int in_video_codec = find_codec(AVMEDIA_TYPE_VIDEO, input);
     int in_audio_codec = find_codec(AVMEDIA_TYPE_AUDIO, input);
 
+    int in_video_stream = find_stream(AVMEDIA_TYPE_VIDEO, input);
+    int in_audio_stream = find_stream(AVMEDIA_TYPE_AUDIO, input);
     if (!input)
     {
         printf("Failed opening input\n");
@@ -41,28 +50,27 @@ int main()
         return 1;
     }
 
-    input->paths[in_video_codec] = build_video_encoder(&output->codec[in_video_codec], output->container, "h264_nvenc", 1920,
-                                                       1080, 23, (AVRational){1, 1}, (AVRational){60, 1}, 45000000, 0, in_video_codec);
+    AVRational framerate = av_guess_frame_rate(input->container, input->container->streams[in_video_stream], NULL);
+
+    input->paths[in_video_codec] = build_video_encoder(&output->codec[in_video_codec], output->container, "h264_nvenc", input->container->streams[in_video_stream]->codecpar->width,
+                                                       input->container->streams[in_video_stream]->codecpar->height, AV_PIX_FMT_YUV420P, (AVRational){1, 1}, framerate, 45000000, 0, in_video_stream, input->container->streams[in_video_stream]->time_base);
     if (!input->paths[in_video_codec])
     {
         logging(ERROR, "MAIN: failed building video encoder");
         return 1;
     }
 
-    input->paths[in_video_codec]->init(input->paths[in_video_codec]);
-
-    logging(INFO, "VIDEO CODEC: %i", output->codec[in_video_codec]->codec_id);
+    init_path(input->paths[in_video_codec]);
 
     input->paths[in_audio_codec] = build_audio_encoder(&output->codec[in_audio_codec], output->container, "aac", 2,
-                                                       48000, 123 * 1000, in_audio_codec);
+                                                       44100, 123 * 1000, in_audio_codec, input->container->streams[in_video_stream]->time_base);
     if (!input->paths[in_audio_codec])
     {
         logging(ERROR, "MAIN: failed building audio encoder");
         return 1;
     }
-    input->paths[in_audio_codec]->init(input->paths[in_audio_codec]);
 
-    logging(INFO, "AUDIO CODEC: %i", output->codec[in_audio_codec]->codec_id);
+    init_path(input->paths[in_audio_codec]);
 
     if (output->container->oformat->flags & AVFMT_GLOBALHEADER)
         output->container->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -86,122 +94,13 @@ int main()
     stream_clip(input, output);
     av_write_trailer(output->container);
 
+    end_path(input->paths[in_audio_codec]);
+    end_path(input->paths[in_video_codec]);
+
     free_file(input);
     free_file(output);
 }
 
-/*
-int main()
-{
-    int res;
-
-    file *input2 = prepare_file("https://clips-media-assets2.twitch.tv/AT-cm%7Ctj0aODkTsTPV1TzXCB72-A.mp4");
-
-    if (!input2)
-    {
-        printf("Failed in opening input\n");
-        return 1;
-    }
-
-    const char *output_path = "test.mp4";
-
-    file *output = create_file(2, output_path);
-
-    if (!output)
-    {
-        printf("failed creating output\n");
-        return 1;
-    }
-
-    res = create_video_encoder(&output->codec[0], output->container, "h264_nvenc", 1920, 1080,
-                               AV_PIX_FMT_NV12, (AVRational){1, 1}, (AVRational){1, 60}, input2->codec[0]->bit_rate, input2->codec[0]->rc_buffer_size);
-    if (res != 0)
-    {
-        printf("Failed creating video encoder\n");
-        return 1;
-    }
-
-    res = create_audio_encoder(&output->codec[1], output->container, "aac", 2, 48000, input2->codec[1]->bit_rate);
-    if (res != 0)
-    {
-        printf("Failed creating audio encoder\n");
-        return 1;
-    }
-
-    if (output->container->oformat->flags & AVFMT_GLOBALHEADER)
-        output->container->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-
-    if (!(output->container->oformat->flags & AVFMT_NOFILE))
-    {
-        if (avio_open(&output->container->pb, output_path, AVIO_FLAG_WRITE) < 0)
-        {
-            printf("could not open the output file");
-            return 1;
-        }
-    }
-
-    AVDictionary *muxer_opts = NULL;
-    if (avformat_write_header(output->container, &muxer_opts) < 0)
-    {
-        printf("an error occurred when opening output file");
-        return 1;
-    }
-
-    int out_video_codec = find_codec(AVMEDIA_TYPE_VIDEO, output);
-    int in_video_codec2 = find_codec(AVMEDIA_TYPE_VIDEO, input2);
-
-    AVCodecContext *input_ctx = input2->codec[in_video_codec2];
-    AVCodecContext *output_ctx = output->codec[out_video_codec];
-
-    int pixs[] = {output_ctx->sample_fmt, AV_PIX_FMT_NONE};
-
-    filters_path *root = NULL;
-    /*
-    root = build_resize_filter(input_ctx->height, input_ctx->width, input_ctx->pix_fmt,
-                               output_ctx->height, output_ctx->width, output_ctx->pix_fmt);
-    if (!root)
-    {
-        printf("Failed creating path\n");
-        return 1;
-    }
-
-    root = build_ffmpeg_filter("edgedetect", input2->container->streams[in_video_codec2]->time_base, input_ctx->pix_fmt, pixs,
-                               input2->container->streams[in_video_codec2]->codecpar->width, input2->container->streams[in_video_codec2]->codecpar->height, input_ctx->sample_aspect_ratio);
-    if (!root)
-    {
-        printf("Failed creating path\n");
-        return 1;
-    }
-    
-
-    input2->paths[in_video_codec2] = root;
-
-    init_path(input2->paths[in_video_codec2]);
-
-    thrd_t thr;
-    thrd_create(&thr, times_per_second, NULL);
-
-    stream_clip(input2, output);
-
-    av_write_trailer(output->container);
-
-    free_file(input2);
-    free_file(output);
-
-    return 0;
-}
-
-int fp2s = 0;
-int times_per_second()
-{
-    while (1)
-    {
-        printf("fps:%i\n", fp2s / 1);
-        fp2s = 0;
-        sleep(1);
-    }
-}
-*/
 filters_path *create_video_path(AVCodecContext *encoder, AVCodecContext *decoder, filters_path *path)
 {
     filters_path *root = NULL;
@@ -258,7 +157,8 @@ file *create_file(int streams, const char *filename)
     return output;
 }
 
-file *prepare_file(char *path)
+// If video decoder or audio decoder are NULL default ones are going to be used
+file *create_decoder(char *path, const char *video_decoder, const char *audio_decoder)
 {
     file *input = malloc(sizeof(file));
     int res;
@@ -267,25 +167,15 @@ file *prepare_file(char *path)
 
     if (res != 0)
     {
-        printf("Failed opening file\n");
+        logging(ERROR, "Failed opening file\n");
 
         return NULL;
     }
-    char *video_codec = NULL;
 
-    for (unsigned int i = 0; i < input->container->nb_streams; i++)
-    {
-        if (input->container->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
-            input->container->streams[i]->codecpar->format == AV_PIX_FMT_YUV420P)
-        {
-            video_codec = "h264_cuvid";
-        }
-    }
-
-    res = open_codecs(input, video_codec, NULL);
+    res = open_codecs(input, video_decoder, audio_decoder);
     if (res != 0)
     {
-        printf("Failed opening codecs\n");
+        logging(ERROR, "Failed opening codecs\n");
 
         return NULL;
     }
@@ -294,7 +184,7 @@ file *prepare_file(char *path)
 
     if (!input->paths)
     {
-        printf("Failed allocating ram for file\n");
+        logging(ERROR, "Failed allocating ram for file\n");
         return NULL;
     }
 
@@ -305,7 +195,7 @@ file *prepare_file(char *path)
 
     return input;
 }
-
+int frames = 0;
 int stream_clip(file *input, file *output)
 {
     AVFrame *frame = av_frame_alloc();
@@ -317,18 +207,20 @@ int stream_clip(file *input, file *output)
 
         if (res == 1)
         {
-            printf("Error decoding a frame\n");
+            logging(ERROR, "Error decoding a frame\n");
+
+            av_frame_free(&frame);
+            av_packet_free(&packet);
+
             return 1;
         }
-
         else if (res == 0)
         {
-            if (!packet->stream_index == 0)
+            if (packet->stream_index == 0)
             {
-                //fp2s++;
+                printf("%i\n", frames);
+                frames++;
             }
-
-            //encode_frame(output, frame, packet->stream_index);
             apply_path(input->paths[packet->stream_index], frame);
         }
         else if (res == -1)

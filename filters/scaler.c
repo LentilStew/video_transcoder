@@ -20,6 +20,12 @@ void resize_init(filters_path *filter_step)
 
 void resize_uninit(filters_path *filter_step)
 {
+    scaler_params *params = (scaler_params *)filter_step->filter_params;
+    struct SwsContext *sws_ctx = filter_step->internal;
+
+    sws_freeContext(sws_ctx);
+    free(params);
+
     return;
 }
 
@@ -38,21 +44,21 @@ AVFrame *resize_frame(filters_path *filter_step, AVFrame *frame)
     new_frame->format = params->out_pixel_fmt;
     new_frame->pts = frame->pts;
 
+
     res = av_frame_get_buffer(new_frame, 0);
     if (res != 0)
     {
         return NULL;
     }
+
     sws_scale(sws_ctx, (const uint8_t **)frame->data, frame->linesize, 0, frame->height, new_frame->data, new_frame->linesize);
 
-    logging(INFO, "RESIZE FRAME: out width %i height %i pix_fmt %i", frame->width, frame->height, frame->format);
-
-    av_frame_free(&frame);
+    logging(INFO, "RESIZE FRAME: out width %i height %i pix_fmt %i", new_frame->width, new_frame->height, new_frame->format);
 
     return new_frame;
 }
 
-scaler_params *scaler_builder(int in_height, int in_width, int in_pixel_fmt, int out_height, int out_width, int out_pixel_fmt)
+scaler_params *scaler_builder(int in_width, int in_height, int in_pixel_fmt, int out_width, int out_height, int out_pixel_fmt)
 {
     scaler_params *params = malloc(sizeof(scaler_params));
     if (!params)
@@ -71,27 +77,31 @@ scaler_params *scaler_builder(int in_height, int in_width, int in_pixel_fmt, int
     return params;
 }
 
-filters_path *build_resize_filter(int in_height, int in_width, int in_pixel_fmt,
-                                  int out_height, int out_width, int out_pixel_fmt)
+filters_path *build_resize_filter(int in_width, int in_height, int in_pixel_fmt,
+                                  int out_width, int out_height, int out_pixel_fmt)
 {
     logging(INFO, "CREATE FILTER RESIZE: in width %i height %i pix_fmt %i", in_width, in_height, in_pixel_fmt);
     logging(INFO, "CREATE FILTER RESIZE: out width %i height %i pix_fmt %i", out_width, out_height, out_pixel_fmt);
 
     filters_path *new = build_filters_path();
+
     if (!new)
     {
         logging(ERROR, "CREATE FILTER RESIZE: ERROR ALLOCATING RAM");
 
         return NULL;
     }
-    new->filter_params = (scaler_params *)scaler_builder(in_height, in_width, in_pixel_fmt,
-                                                         out_height, out_width, out_pixel_fmt);
+
+    new->filter_params = (scaler_params *)scaler_builder(in_width, in_height, in_pixel_fmt,
+                                                         out_width, out_height, out_pixel_fmt);
+
     if (!new->filter_params)
     {
         logging(ERROR, "CREATE FILTER RESIZE: ERROR CREATING FILTER PARAMS");
 
         return NULL;
     }
+
     new->init = resize_init;
     new->filter_frame = resize_frame;
     new->uninit = resize_uninit;

@@ -9,6 +9,10 @@ int PRINT_DEBUG_ON = 1;
 
 void logging(int level, const char *fmt, ...)
 {
+    if(level == INFO)
+    {
+        return;
+    }
     if (PRINT_DEBUG_ON == 1)
     {
         va_list args;
