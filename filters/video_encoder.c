@@ -124,9 +124,11 @@ AVFrame *encode_video_frame(filters_path *filter_props, AVFrame *frame)
         params->packet->stream_index = params->index;
 
         params->packet->duration = params->stream->time_base.den / params->stream->time_base.num / params->frame_rate.num * params->frame_rate.den;
+        params->packet->dts = params->frames * 512;
+        params->packet->pts = params->frames * 512;
+        
         params->frames++;
 
-        av_packet_rescale_ts(params->packet, params->in_time_base, params->stream->time_base);
         response = av_interleaved_write_frame(params->container, params->packet);
 
         if (response != 0)

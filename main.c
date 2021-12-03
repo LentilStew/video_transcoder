@@ -23,7 +23,9 @@ int main()
     const char *output_path = "out.mp4";
     //https://clips-media-assets2.twitch.tv/AT-cm%7Csrf8WrWTR-507Wm4I2Wn2A.mp4
     file *input = create_decoder("in.mp4", "h264_cuvid", NULL);
-    if (!input)
+    file *input2 = create_decoder("in.mp4", "h264_cuvid", NULL);
+
+    if (!input || !input2)
     {
         logging(ERROR, "Failed creating input\n");
         return 1;
@@ -53,14 +55,14 @@ int main()
     AVRational framerate = av_guess_frame_rate(input->container, input->container->streams[in_video_stream], NULL);
 
     input->paths[in_video_codec] = build_video_encoder(&output->codec[in_video_codec], output->container, "h264_nvenc", input->container->streams[in_video_stream]->codecpar->width,
-                                                       input->container->streams[in_video_stream]->codecpar->height, AV_PIX_FMT_YUV420P, (AVRational){1, 1}, framerate, 45000000, 0, in_video_stream, input->container->streams[in_video_stream]->time_base);
+                                                       input->container->streams[in_video_stream]->codecpar->height, 23, (AVRational){1, 1}, framerate, 45000000, 0, in_video_stream, input->container->streams[in_video_stream]->time_base);
     if (!input->paths[in_video_codec])
     {
         logging(ERROR, "MAIN: failed building video encoder");
         return 1;
     }
-
     init_path(input->paths[in_video_codec]);
+
 
     input->paths[in_audio_codec] = build_audio_encoder(&output->codec[in_audio_codec], output->container, "aac", 2,
                                                        44100, 123 * 1000, in_audio_codec, input->container->streams[in_video_stream]->time_base);
@@ -71,6 +73,9 @@ int main()
     }
 
     init_path(input->paths[in_audio_codec]);
+
+
+    input2->paths = input->paths;
 
     if (output->container->oformat->flags & AVFMT_GLOBALHEADER)
         output->container->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -92,6 +97,8 @@ int main()
     }
 
     stream_clip(input, output);
+    stream_clip(input2, output);
+
     av_write_trailer(output->container);
 
     end_path(input->paths[in_audio_codec]);
